@@ -11,7 +11,7 @@ public:
     MyDB();
     ~MyDB();
     bool initDB(string host, string user, string pwd, string db_name);
-    bool SqlQuery(string sql);
+    bool SqlQuery(string sql, string &hashcode);
 
 private:
     MYSQL *mysql;      //句柄指针

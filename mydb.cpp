@@ -26,7 +26,7 @@ bool MyDB::initDB(string host, string user, string pwd, string db_name)
     }
     return true;
 }
-bool MyDB::SqlQuery(string sql)
+bool MyDB::SqlQuery(string sql, string &hashcode)
 {
     if (mysql_query(mysql, sql.c_str()))
     { //成功返回0
@@ -46,11 +46,13 @@ bool MyDB::SqlQuery(string sql)
                 row = mysql_fetch_row(result); //获取下一行
                 if (row == NULL)
                     break;
-                for (int j = 0; j < col_num; j++)
+                int j;
+                for (j = 0; j < col_num; j++)
                 {
                     //打印每一个字段
                     cout << row[j] << "\t";
                 }
+                hashcode = string(row[j - 1]);
                 cout << endl;
             }
         }

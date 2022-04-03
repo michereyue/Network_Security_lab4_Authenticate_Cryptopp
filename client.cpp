@@ -1,4 +1,5 @@
 #include "mydb.h"
+#include "Packet.h"
 #include <iostream>
 #include <unistd.h>
 #include <stdio.h>
@@ -18,41 +19,6 @@
 using namespace CryptoPP;
 using namespace std;
 
-#define HASH_LENGTH 32         // hash值的长度(Byte)
-#define MAX_LENGTH 128         // payload的长度
-#define USERNAME_MAX_LENGTH 16 // username
-#define AUTHENCODE_LENGTH 32   //认证码长度
-#define IV_LENGTH 16           //初始向量长度
-#define AES_KEY_LENGTH 32      //密钥长度
-typedef CryptoPP::byte Byte;
-
-typedef struct datapkt //客户端发送的请求包格式
-{
-    bool R; //该包存放的是注册信息
-    Byte payload[MAX_LENGTH];
-};
-typedef struct registerPayload //用于注册的包格式
-{
-    Byte username[USERNAME_MAX_LENGTH];
-    Byte hash[HASH_LENGTH]; //用户名与口令的散列值
-};
-typedef struct authenPayload
-{
-    Byte username[USERNAME_MAX_LENGTH];
-    Byte hash[HASH_LENGTH];             //散列值2
-    Byte authenCode[AUTHENCODE_LENGTH]; //认证码
-};
-typedef struct replypkt //应答包格式
-{
-    uint32_t status;
-    /*状态码
-        0-注册失败，payload部分为错误信息
-        1-注册成功，payload部分为注册成功的信息
-        2-认证失败，payload部分为错误信息
-        3-认证成功，payload部分为加密后的认证码
-    */
-    Byte payload[MAX_LENGTH];
-};
 /*
     -u 用户名 -p 口令
     用户名和口令都是16字节
@@ -65,14 +31,14 @@ int port = 8888;
 char *serverip = "172.19.24.188";
 void PrintUsage()
 {
-    cout << "Usage:\t./client -u username -p passwd [-r]" << endl;
+    cout << "Usage:\t./client -h hostip -P port -u username -p passwd [-r]" << endl;
     cout << "\tUsername and Passwd must be shorter than " << USERNAME_MAX_LENGTH - 1 << endl;
     cout << "\tRegister mode is triggered on if '-r' is assigned." << endl;
 }
 
 int main(int argc, char **argv)
 {
-    string optstring("u:p:r");
+    string optstring("h:P:u:p:r");
     int opt;
     bool flag_u = false;
     bool flag_p = false;
@@ -103,6 +69,13 @@ int main(int argc, char **argv)
         case 'r':
             R = true;
             break;
+        case 'h':
+            serverip = (char *)malloc(strlen(optarg) + 1);
+            memcpy(serverip, optarg, strlen(optarg) + 1);
+            break;
+        case 'P':
+            port = atoi(optarg);
+            break;
         default:
             PrintUsage();
             exit(0);
@@ -114,6 +87,8 @@ int main(int argc, char **argv)
         PrintUsage();
         exit(0);
     }
+    cout << "Host:" << serverip << endl;
+    cout << "Port:" << port << endl;
     if (!R)
     {
         //认证模式
@@ -152,7 +127,7 @@ int main(int argc, char **argv)
         send_pkt->R = false;
         struct authenPayload *apayload = (struct authenPayload *)malloc(sizeof(struct authenPayload));
         memcpy(apayload->username, username, USERNAME_MAX_LENGTH);
-        memcpy(apayload->hash, digest1.data(), digest1.size());
+        memcpy(apayload->hash, digest2.data(), digest2.size());
         memcpy(apayload->authenCode, authenCode, sizeof(authenCode));
         memcpy(send_pkt->payload, apayload, sizeof(struct authenPayload));
 
@@ -200,7 +175,7 @@ int main(int argc, char **argv)
         if (reply->status == 2)
         {
             //认证失败
-            cout << "认证失败:" << reply->payload << endl;
+            cout << "认证失败:" << string((char *)reply->payload) << endl;
             exit(0);
         }
         if (reply->status == 3)
@@ -209,9 +184,9 @@ int main(int argc, char **argv)
             // AES-CBC解密得到认证码，十六进制编码后写入文件
             //用digest1做解密密钥,digest1的前16字节做初始向量
             CBC_Mode<AES>::Decryption dec;
-            Byte *piv = (Byte *)malloc(IV_LENGTH);
-            memcpy(piv, digest1.data(), IV_LENGTH);
-            SecByteBlock iv(piv, IV_LENGTH);
+            Byte *piv = (Byte *)malloc(MY_IV_LENGTH);
+            memcpy(piv, digest1.data(), MY_IV_LENGTH);
+            SecByteBlock iv(piv, MY_IV_LENGTH);
             dec.SetKeyWithIV(digest1, digest1.size(), iv, iv.size());
             string recover; //解密得到的认证码
             StringSource Dec(reply->payload, true, new StreamTransformationFilter(dec, new StringSink(recover)));
@@ -301,7 +276,7 @@ int main(int argc, char **argv)
             {
                 cout << "注册成功" << endl;
             }
-            cout << reply->payload << endl;
+            cout << string((char *)reply->payload) << endl;
             exit(0);
         }
     }
