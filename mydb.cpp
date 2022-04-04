@@ -30,7 +30,7 @@ bool MyDB::SqlQuery(string sql, string &hashcode)
 {
     if (mysql_query(mysql, sql.c_str()))
     { //成功返回0
-        cout << mysql_error(mysql);
+        cout << mysql_error(mysql) << endl;
         return false;
     }
     else
@@ -40,6 +40,11 @@ bool MyDB::SqlQuery(string sql, string &hashcode)
         {
             int col_num = mysql_num_fields(result); //结果的列数，即字段数
             int row_num = mysql_num_rows(result);   //结果的元组个数
+            if (row_num == 0)
+            {
+                //没有匹配的元组
+                return false;
+            }
             for (int i = 0; i < row_num; i++)
             {
                 //打印每一行
@@ -66,7 +71,7 @@ bool MyDB::SqlQuery(string sql, string &hashcode)
             }
             else
             { //查询有错误
-                cout << mysql_error(mysql);
+                cout << mysql_error(mysql) << endl;
                 return false;
             }
         }

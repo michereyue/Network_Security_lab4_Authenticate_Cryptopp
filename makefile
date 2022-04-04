@@ -1,5 +1,5 @@
-target=main
-cppfile=mydb.cpp main.cpp
+target=client
+cppfile=mydb.cpp client.cpp
 headfile=mydb.h Packet.h
 mysqlopt=`mysql_config --cflags --libs`
 cryptopt=-lcryptopp

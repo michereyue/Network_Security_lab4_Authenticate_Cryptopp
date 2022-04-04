@@ -3,6 +3,8 @@ using namespace std;
 
 int main()
 {
+    string a("B1DF0CCE95B967D67980FF5B7C6F806876768777F4D5AF0D7B015AD662DC220E");
+
     MyDB db;
     string host("localhost");
     string user("root");

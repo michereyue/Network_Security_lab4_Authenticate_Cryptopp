@@ -28,7 +28,7 @@ Byte username[USERNAME_MAX_LENGTH];
 Byte passwd[USERNAME_MAX_LENGTH];
 bool R = false; // true:register
 int port = 8888;
-char *serverip = "172.19.24.188";
+char *serverip = "172.24.117.28";
 void PrintUsage()
 {
     cout << "Usage:\t./client -h hostip -P port -u username -p passwd [-r]" << endl;
@@ -99,19 +99,28 @@ int main(int argc, char **argv)
         sha.Update(passwd, strlen((char *)passwd));
         SecByteBlock digest1(sha.DigestSize()); //散列值1的存放空间
         sha.Final(digest1);                     //计算散列值1，并刷新状态
-        cout << "username:";
-        StringSource sUsername(username, true, new HexEncoder(new FileSink(std::cout)));
+        cout << "username:" << username;
+        // StringSource sUsername(username, true, new HexEncoder(new FileSink(std::cout)));
         cout << endl;
-        cout << "passwd:";
-        StringSource sPasswd(passwd, true, new HexEncoder(new FileSink(cout)));
+        cout << "passwd:" << passwd;
+        // StringSource sPasswd(passwd, true, new HexEncoder(new FileSink(cout)));
         cout << endl;
         cout << "digest1=";
-        StringSource sDigest1(digest1, true, new HexEncoder(new FileSink(std::cout)));
+        StringSource sDigest1(string((char *)digest1.data()), true, new HexEncoder(new FileSink(std::cout)));
 
         //生成随机的认证码
         Byte authenCode[AUTHENCODE_LENGTH];
         AutoSeededRandomPool rng;
         rng.GenerateBlock(authenCode, sizeof(authenCode));
+        cout << endl
+             << "authencode:";
+        char authenCode_c[sizeof(authenCode) + 1];
+        bzero(authenCode_c, sizeof(authenCode_c));
+        memcpy(authenCode_c, authenCode, sizeof(authenCode));
+        string authenCode_str = string((char *)authenCode_c);
+        string auth_str;
+        StringSource sAuthcode(authenCode_str, true, new HexEncoder(new StringSink(auth_str)));
+        cout << auth_str;
 
         //由散列值1与认证码计算散列值2
         sha.Update(digest1, digest1.size());
@@ -120,7 +129,7 @@ int main(int argc, char **argv)
         sha.Final(digest2);
         cout << endl
              << "digest2=";
-        StringSource sDigest2(digest2, true, new HexEncoder(new FileSink(std::cout)));
+        StringSource sDigest2(string((char *)digest2.data()), true, new HexEncoder(new FileSink(std::cout)));
 
         //构造发送数据包
         struct datapkt *send_pkt = (struct datapkt *)malloc(sizeof(struct datapkt));
@@ -175,7 +184,8 @@ int main(int argc, char **argv)
         if (reply->status == 2)
         {
             //认证失败
-            cout << "认证失败:" << string((char *)reply->payload) << endl;
+            cout << "认证失败:" << endl
+                 << string((char *)reply->payload) << endl;
             exit(0);
         }
         if (reply->status == 3)
@@ -189,10 +199,16 @@ int main(int argc, char **argv)
             SecByteBlock iv(piv, MY_IV_LENGTH);
             dec.SetKeyWithIV(digest1, digest1.size(), iv, iv.size());
             string recover; //解密得到的认证码
-            StringSource Dec(reply->payload, true, new StreamTransformationFilter(dec, new StringSink(recover)));
+            char reply_payload_c[MAX_LENGTH + 1];
+            bzero(reply_payload_c, sizeof(reply_payload_c));
+            memcpy(reply_payload_c, reply->payload, MAX_LENGTH);
+            string reply_payload_s(reply_payload_c);
+            StringSource Dec(reply_payload_s, true, new StreamTransformationFilter(dec, new StringSink(recover)));
             cout << endl
-                 << "解密得到的认证码:";
-            StringSource sRecover(recover, true, new HexEncoder(new FileSink(cout)));
+                 << "认证成功，解密得到的认证码(" << recover.length() << "):";
+            string recover_str;
+            StringSource sRecover(recover, true, new HexEncoder(new StringSink(recover_str)));
+            cout << recover_str;
             cout << endl;
             // TODO: 写到文件
         }
@@ -207,14 +223,19 @@ int main(int argc, char **argv)
         sha.Update(passwd, strlen((char *)passwd));
         SecByteBlock digest1(sha.DigestSize()); //散列值1的存放空间
         sha.Final(digest1);                     //计算散列值1，并刷新状态
-        cout << "username:";
-        StringSource sUsername(username, true, new HexEncoder(new FileSink(std::cout)));
+        cout << "username:" << username;
+        // StringSource sUsername(username, true, new HexEncoder(new FileSink(std::cout)));
         cout << endl;
-        cout << "passwd:";
-        StringSource sPasswd(passwd, true, new HexEncoder(new FileSink(cout)));
+        cout << "passwd:" << passwd;
+        // StringSource sPasswd(passwd, true, new HexEncoder(new FileSink(cout)));
         cout << endl;
         cout << "digest1=";
-        StringSource sDigest1(digest1, true, new HexEncoder(new FileSink(std::cout)));
+        for (size_t i = 0; i < sha.DigestSize(); i++)
+        {
+            printf("%02X", digest1[i]);
+        }
+        // StringSource sDigest1(digest1, true, new HexEncoder(new FileSink(std::cout)));
+        cout << endl;
 
         //构造注册数据包
         struct datapkt *send_pkt = (struct datapkt *)malloc(sizeof(struct datapkt));

@@ -95,7 +95,8 @@ int main(int argc, char **argv)
             struct authenPayload *apayload = (struct authenPayload *)recv_pkt->payload;
 
             //取用户名查询数据库，得到散列值1
-            string sql("select * from auth_code where username=" + string((char *)apayload->username));
+            string sql("select * from auth_code where username='" + string((char *)apayload->username) + "';");
+            // cout << sql << endl; // TODO:
             string digest1_str("");
             if (!db.SqlQuery(sql, digest1_str))
             {
@@ -135,8 +136,8 @@ int main(int argc, char **argv)
                     //认证失败，散列值2不匹配，发送错误信息
                     //十六进制编码，方便打印
                     string digest2_hex, digest2_recv_hex;
-                    StringSource HexEnc2_1(digest2, true, new HexEncoder(new StringSink(digest2_hex)));
-                    StringSource HexEnc2_2(digest2_recv, true, new HexEncoder(new StringSink(digest2_recv_hex)));
+                    StringSource HexEnc2_1(string((char *)digest2.data()), true, new HexEncoder(new StringSink(digest2_hex)));
+                    StringSource HexEnc2_2(string((char *)digest2_recv.data()), true, new HexEncoder(new StringSink(digest2_recv_hex)));
 
                     struct replypkt *reply_pkt = (struct replypkt *)malloc(sizeof(struct replypkt));
                     reply_pkt->status = 2;
@@ -176,7 +177,7 @@ int main(int argc, char **argv)
                     }
                     //加密,构造报文
                     cbc_aes_enc.SetKeyWithIV(key, key.size(), iv, iv.size());
-                    StringSource Enc(apayload->authenCode, true, new StreamTransformationFilter(cbc_aes_enc, new StringSink(cipher)));
+                    StringSource Enc(string((char *)apayload->authenCode), true, new StreamTransformationFilter(cbc_aes_enc, new StringSink(cipher)));
                     cipher.append("\0"); // TODO:
                     if (cipher.length() + 1 > MAX_LENGTH)
                     {
@@ -196,6 +197,52 @@ int main(int argc, char **argv)
         else
         {
             //注册模式
+            struct registerPayload *rpayload = (struct registerPayload *)recv_pkt->payload;
+            struct replypkt *replypkt = (struct replypkt *)malloc(sizeof(struct replypkt));
+            string reply_payload;
+            bool flag = true;
+            if (strlen((char *)rpayload->username) + 1 > USERNAME_MAX_LENGTH)
+            {
+                flag = false;
+                reply_payload = string("注册失败,用户名过长.");
+            }
+            else if (strlen((char *)rpayload->hash) != HASH_LENGTH)
+            {
+                flag = false;
+                reply_payload = string("散列值2长度有误:") + string((to_string((int)strlen((char *)rpayload->hash))));
+            }
+            else
+            {
+                //在数据库中插入
+                //将散列值2十六进制编码
+                string hash_hex;
+                StringSource enchex(string((char *)rpayload->hash), true, new HexEncoder(new StringSink(hash_hex)));
+                string sql("insert into auth_code values('" + string((char *)rpayload->username) + "','" + hash_hex + "');");
+                string param;
+                if (!db.SqlQuery(sql, param))
+                {
+                    //加入数据库失败
+                    flag = false;
+                    reply_payload = string("插入数据库失败(" + sql + ").");
+                }
+            }
+            if (!flag)
+            {
+                //注册失败
+                replypkt->status = 0;
+                // payload为错误原因
+                memcpy(replypkt->payload, reply_payload.c_str(), reply_payload.length() + 1);
+            }
+            else
+            {
+                //注册成功
+                replypkt->status = 1;
+                // payload为注册成功的信息
+                reply_payload = string("注册成功");
+                memcpy(replypkt->payload, reply_payload.c_str(), reply_payload.length() + 1);
+            }
+            //发送应答包
+            send(cfd, replypkt, sizeof(struct replypkt), 0);
         }
         close(cfd);
         continue;
